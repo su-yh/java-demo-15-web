@@ -9,6 +9,8 @@ import com.eb.mvc.authentication.LoginUser;
 import com.eb.util.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 
 import javax.servlet.http.HttpServletRequest;
@@ -28,8 +30,12 @@ public class AuditComponent {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final OperationRecordMapper operationRecordMapper;
 
-    // 审计日志记录
-    public void auditRecord(
+    /**
+     * 审计日志记录
+     * 如果使用spring-security 的权限注解(@{@link PostAuthorize}/@{@link PreAuthorize})时，就必须要使用 boolean 类型的返回值，否则不满足使用条件。
+     * 返回false 将抛出拒绝访问的异常
+     */
+    public boolean auditRecord(
             AuditEnums auditOperation,
             Object spelReturnValue,
             HttpServletRequest request,
@@ -41,6 +47,8 @@ public class AuditComponent {
         } catch (Exception e) {
             log.warn("audit record exception.", e);
         }
+
+        return true;
     }
 
     private void doAuditRecord(

@@ -8,7 +8,6 @@ server:
     context-path: /suyh
   port: 8015
 
-
 ---
 spring:
   config:
