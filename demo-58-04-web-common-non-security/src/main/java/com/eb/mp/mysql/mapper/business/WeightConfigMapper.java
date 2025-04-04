@@ -1,7 +1,7 @@
 package com.eb.mp.mysql.mapper.business;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.eb.constant.DataSourceNames;
+import com.eb.config.datasource.constant.DataSourceNames;
 import com.eb.mp.mybatis.BaseMapperX;
 import com.eb.mp.mybatis.LambdaQueryWrapperX;
 import com.eb.mp.mybatis.PageParam;
@@ -14,7 +14,7 @@ import org.apache.ibatis.annotations.Mapper;
  * @since 2024-09-02
  */
 @Mapper
-@DS(DataSourceNames.CDS_MYSQL)
+@DS(DataSourceNames.MASTER)
 public interface WeightConfigMapper extends BaseMapperX<WeightConfigEntity> {
     default PageResult<WeightConfigEntity> queryPage(
             PageParam pageParam, WeightConfigEntity queryEntity) {
