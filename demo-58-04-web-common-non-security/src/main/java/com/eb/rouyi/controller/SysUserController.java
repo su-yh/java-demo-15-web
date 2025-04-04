@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import lombok.Data;
 import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -140,8 +141,11 @@ public class SysUserController extends BaseController
 //    @Log(title = "用户管理", businessType = BusinessType.INSERT)
     @AuditOperation("@audit.auditRecord(" +
             "T(com.eb.constant.enums.AuditEnums).SYSTEM_USER_CREATE, " +
-            "#spelReturnValue, #request, #loginUser, " +
-            "#user)")
+            "#spelReturnValue, #request, #loginUser, #user)")
+    // returnObject 是不可以加前缀#，加上之后解析的结果就是null
+    @PostAuthorize("@audit.auditRecord(" +
+            "T(com.eb.constant.enums.AuditEnums).SYSTEM_USER_CREATE, " +
+            "returnObject, #request, #loginUser, #user)")
     @PostMapping()
     public AjaxResult add(
             @SuppressWarnings("unused") HttpServletRequest request,

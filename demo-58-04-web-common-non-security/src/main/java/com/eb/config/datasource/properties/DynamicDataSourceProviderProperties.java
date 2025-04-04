@@ -18,13 +18,19 @@ import java.util.Map;
  * @author suyh
  * @since 2024-03-20
  */
-@ConfigurationProperties(prefix = "spring.datasource.hikari")
+@ConfigurationProperties(prefix = DynamicDataSourceProviderProperties.PREFIX)
 @Data
 @Validated
 public class DynamicDataSourceProviderProperties implements DynamicDataSourceProvider {
+    // TODO: suyh - 正常情况下，我们不要使用 spring 作为配置项的前缀
+    public static final String PREFIX = "spring.datasource.hikari";
+//    public static final String PREFIX = "datasource.hikari";
+
+    // TODO: suyh - 不明白为什么，直接使用 HikariDataSource idea 不识别配置项，并没有提示信息。
+    //  所以暂时使用 HikariDataSourceShow 替代
     @NotNull
     @NestedConfigurationProperty
-    private HikariDataSource cdsMysql;
+    private HikariDataSourceShow cdsMysql;
 
     // @NotNull
     @NestedConfigurationProperty
