@@ -103,10 +103,27 @@ public class GlobalExceptionHandler {
 
     private String resultMessage(BindingResult bindingResult) {
         StringBuilder sb = new StringBuilder();
-        List<ObjectError> errors = bindingResult.getAllErrors();
-        for (ObjectError error : errors) {
-            String defaultMessage = error.getDefaultMessage();
-            sb.append(defaultMessage).append(" ");
+
+//        if (false) {
+//            List<ObjectError> errors = bindingResult.getAllErrors();
+//            for (ObjectError error : errors) {
+//                String defaultMessage = error.getDefaultMessage();
+//                sb.append(defaultMessage).append(" ");
+//            }
+//        }
+
+        List<FieldError> fieldErrors = bindingResult.getFieldErrors();
+        for (FieldError fieldError : fieldErrors) {
+            String field = fieldError.getField();
+            String defaultMessage = fieldError.getDefaultMessage();
+            System.out.println("Field: " + field + ", Error: " + defaultMessage);
+        }
+
+        List<ObjectError> globalErrors = bindingResult.getGlobalErrors();
+        for (ObjectError globalError : globalErrors) {
+            String objectName = globalError.getObjectName();
+            String defaultMessage = globalError.getDefaultMessage();
+            System.out.println("Object: " + objectName + ", Error: " + defaultMessage);
         }
         return sb.toString();
     }
