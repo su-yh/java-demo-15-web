@@ -24,6 +24,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.ClientAnchor;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationConstraint;
 import org.apache.poi.ss.usermodel.DataValidationHelper;
@@ -55,6 +56,7 @@ import org.openxmlformats.schemas.drawingml.x2006.spreadsheetDrawing.CTMarker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
+import org.springframework.lang.NonNull;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -134,7 +136,7 @@ public class RuoyiExcelUtil<T> {
     private List<Object[]> fields;
 
     /**
-     * 当前行号
+     * 当前行号，从0 开始
      */
     private int rownum;
 
@@ -195,6 +197,17 @@ public class RuoyiExcelUtil<T> {
         this.locale = locale;
     }
 
+//    /**
+//     * 隐藏Excel中列属性
+//     *
+//     * @param fields 列属性名 示例[单个"name"/多个"id","name"]
+//     * @throws Exception
+//     */
+//    public void hideColumn(String... fields)
+//    {
+//        this.excludeFields = fields;
+//    }
+
     public void init(List<T> list, String sheetName, String title, RuoyiExcel.Type type) {
         if (list == null) {
             list = new ArrayList<T>();
@@ -241,7 +254,8 @@ public class RuoyiExcelUtil<T> {
             for (Object[] objects : fields) {
                 RuoyiExcel attr = (RuoyiExcel) objects[1];
                 Cell headCell1 = subRow.createCell(excelNum);
-                headCell1.setCellValue(attr.name());
+                String title = MESSAGE_SOURCE.getMessage(attr.nameCode(), null, attr.name(), locale);
+                headCell1.setCellValue(title);
                 headCell1.setCellStyle(styles.get(RuoyiStringUtils.format("header_{}_{}", attr.headerColor(), attr.headerBackgroundColor())));
                 excelNum++;
             }
@@ -407,6 +421,32 @@ public class RuoyiExcelUtil<T> {
         return list;
     }
 
+//    /**
+//     * 对list数据源将其里面的数据导入到excel表单
+//     *
+//     * @param list 导出数据集合
+//     * @param sheetName 工作表的名称
+//     * @return 结果
+//     */
+//    public AjaxResult exportExcel(List<T> list, String sheetName)
+//    {
+//        return exportExcel(list, sheetName, StringUtils.EMPTY);
+//    }
+//
+//    /**
+//     * 对list数据源将其里面的数据导入到excel表单
+//     *
+//     * @param list 导出数据集合
+//     * @param sheetName 工作表的名称
+//     * @param title 标题
+//     * @return 结果
+//     */
+//    public AjaxResult exportExcel(List<T> list, String sheetName, String title)
+//    {
+//        this.init(list, sheetName, title, RuoyiExcel.Type.EXPORT);
+//        return exportExcel();
+//    }
+
     /**
      * 对list数据源将其里面的数据导入到excel表单
      *
@@ -447,6 +487,19 @@ public class RuoyiExcelUtil<T> {
         importTemplateExcel(response, sheetName, RuoyiStringUtils.EMPTY);
     }
 
+//    /**
+//     * 对list数据源将其里面的数据导入到excel表单
+//     *
+//     * @param sheetName 工作表的名称
+//     * @param title     标题
+//     * @return 结果
+//     */
+//    public AjaxResult importTemplateExcel(String sheetName, String title)
+//    {
+//        this.init(null, sheetName, title, RuoyiExcel.Type.IMPORT);
+//        return exportExcel();
+//    }
+
     /**
      * 对list数据源将其里面的数据导入到excel表单
      *
@@ -477,6 +530,34 @@ public class RuoyiExcelUtil<T> {
         }
     }
 
+//    /**
+//     * 对list数据源将其里面的数据导入到excel表单
+//     *
+//     * @return 结果
+//     */
+//    public AjaxResult exportExcel()
+//    {
+//        OutputStream out = null;
+//        try
+//        {
+//            writeSheet();
+//            String filename = encodingFilename(sheetName);
+//            out = new FileOutputStream(getAbsoluteFile(filename));
+//            wb.write(out);
+//            return AjaxResult.success(filename);
+//        }
+//        catch (Exception e)
+//        {
+//            log.error("导出Excel异常{}", e.getMessage());
+//            throw new UtilException("导出Excel失败，请联系网站管理员！");
+//        }
+//        finally
+//        {
+//            IOUtils.closeQuietly(wb);
+//            IOUtils.closeQuietly(out);
+//        }
+//    }
+
     /**
      * 创建写入数据到Sheet
      */
@@ -503,7 +584,7 @@ public class RuoyiExcelUtil<T> {
                 }
             }
             if (RuoyiExcel.Type.EXPORT.equals(type)) {
-                fillExcelData(index);
+                fillExcelData(index, row);
                 addStatisticsRow();
             }
         }
@@ -513,15 +594,16 @@ public class RuoyiExcelUtil<T> {
      * 填充excel数据
      *
      * @param index 序号
+     * @param row 单元格行
      */
     @SuppressWarnings("unchecked")
-    public void fillExcelData(int index) {
+    public void fillExcelData(int index, Row row) {
         int startNo = index * sheetSize;
         int endNo = Math.min(startNo + sheetSize, list.size());
         int rowNo = (1 + rownum) - startNo;
         for (int i = startNo; i < endNo; i++) {
             rowNo = isSubList() ? (i > 1 ? rowNo + 1 : rowNo + i) : i + 1 + rownum - startNo;
-            Row row = sheet.createRow(rowNo);
+            row = sheet.createRow(rowNo);
             // 得到导出对象.
             T vo = (T) list.get(i);
             Collection<?> subList = null;
@@ -582,6 +664,8 @@ public class RuoyiExcelUtil<T> {
         titleFont.setFontHeightInPoints((short) 16);
         titleFont.setBold(true);
         style.setFont(titleFont);
+        DataFormat dataFormat = wb.createDataFormat();
+        style.setDataFormat(dataFormat.getFormat("@"));
         styles.put("title", style);
 
         style = wb.createCellStyle();
@@ -641,6 +725,9 @@ public class RuoyiExcelUtil<T> {
                 headerFont.setBold(true);
                 headerFont.setColor(excel.headerColor().index);
                 style.setFont(headerFont);
+                // 设置表格头单元格文本形式
+                DataFormat dataFormat = wb.createDataFormat();
+                style.setDataFormat(dataFormat.getFormat("@"));
                 headerStyles.put(key, style);
             }
         }
@@ -656,31 +743,58 @@ public class RuoyiExcelUtil<T> {
     private Map<String, CellStyle> annotationDataStyles(Workbook wb) {
         Map<String, CellStyle> styles = new HashMap<String, CellStyle>();
         for (Object[] os : fields) {
+            Field field = (Field) os[0];
             RuoyiExcel excel = (RuoyiExcel) os[1];
-            String key = RuoyiStringUtils.format("data_{}_{}_{}", excel.align(), excel.color(), excel.backgroundColor());
-            if (!styles.containsKey(key)) {
-                CellStyle style = wb.createCellStyle();
-                style.setAlignment(excel.align());
-                style.setVerticalAlignment(VerticalAlignment.CENTER);
-                style.setBorderRight(BorderStyle.THIN);
-                style.setRightBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
-                style.setBorderLeft(BorderStyle.THIN);
-                style.setLeftBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
-                style.setBorderTop(BorderStyle.THIN);
-                style.setTopBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
-                style.setBorderBottom(BorderStyle.THIN);
-                style.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                style.setFillForegroundColor(excel.backgroundColor().getIndex());
-                Font dataFont = wb.createFont();
-                dataFont.setFontName("Arial");
-                dataFont.setFontHeightInPoints((short) 10);
-                dataFont.setColor(excel.color().index);
-                style.setFont(dataFont);
-                styles.put(key, style);
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                ParameterizedType pt = (ParameterizedType) field.getGenericType();
+                Class<?> subClass = (Class<?>) pt.getActualTypeArguments()[0];
+                List<Field> subFields = FieldUtils.getFieldsListWithAnnotation(subClass, RuoyiExcel.class);
+                for (Field subField : subFields) {
+                    RuoyiExcel subExcel = subField.getAnnotation(RuoyiExcel.class);
+                    annotationDataStyles(styles, subField, subExcel);
+                }
+            } else {
+                annotationDataStyles(styles, field, excel);
             }
         }
         return styles;
+    }
+
+    /**
+     * 根据Excel注解创建表格列样式
+     *
+     * @param styles 自定义样式列表
+     * @param field  属性列信息
+     * @param excel  注解信息
+     */
+    public void annotationDataStyles(Map<String, CellStyle> styles, Field field, RuoyiExcel excel)
+    {
+        String key = RuoyiStringUtils.format("data_{}_{}_{}_{}", excel.align(), excel.color(), excel.backgroundColor(), excel.cellType());
+        if (!styles.containsKey(key)) {
+            CellStyle style = wb.createCellStyle();
+            style.setAlignment(excel.align());
+            style.setVerticalAlignment(VerticalAlignment.CENTER);
+            style.setBorderRight(BorderStyle.THIN);
+            style.setRightBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+            style.setBorderLeft(BorderStyle.THIN);
+            style.setLeftBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+            style.setBorderTop(BorderStyle.THIN);
+            style.setTopBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+            style.setBorderBottom(BorderStyle.THIN);
+            style.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+            style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            style.setFillForegroundColor(excel.backgroundColor().getIndex());
+            Font dataFont = wb.createFont();
+            dataFont.setFontName("Arial");
+            dataFont.setFontHeightInPoints((short) 10);
+            dataFont.setColor(excel.color().index);
+            style.setFont(dataFont);
+            if (RuoyiExcel.ColumnType.TEXT == excel.cellType()) {
+                DataFormat dataFormat = wb.createDataFormat();
+                style.setDataFormat(dataFormat.getFormat("@"));
+            }
+            styles.put(key, style);
+        }
     }
 
     /**
@@ -696,8 +810,9 @@ public class RuoyiExcelUtil<T> {
         cell.setCellStyle(styles.get(RuoyiStringUtils.format("header_{}_{}", attr.headerColor(), attr.headerBackgroundColor())));
         if (isSubList()) {
             // 填充默认样式，防止合并单元格样式失效
-            sheet.setDefaultColumnStyle(column, styles.get(RuoyiStringUtils.format("data_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor())));
+            sheet.setDefaultColumnStyle(column, styles.get(RuoyiStringUtils.format("data_{}_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor(), attr.cellType())));
             if (attr.needMerge()) {
+                // suyh - 合并单元格
                 sheet.addMergedRegion(new CellRangeAddress(rownum - 1, rownum, column, column));
             }
         }
@@ -712,7 +827,7 @@ public class RuoyiExcelUtil<T> {
      * @param cell  单元格信息
      */
     public void setCellVo(Object value, RuoyiExcel attr, Cell cell) {
-        if (RuoyiExcel.ColumnType.STRING == attr.cellType()) {
+        if (RuoyiExcel.ColumnType.STRING == attr.cellType() || RuoyiExcel.ColumnType.TEXT == attr.cellType()) {
             String cellValue = RuoyiConvert.toStr(value);
             // 对于任何以表达式触发字符 =-+@开头的单元格，直接使用tab字符作为前缀，防止CSV注入。
             if (RuoyiStringUtils.startsWithAny(cellValue, FORMULA_STR)) {
@@ -771,12 +886,13 @@ public class RuoyiExcelUtil<T> {
             sheet.setColumnWidth(column, (int) ((attr.width() + 0.72) * 256));
         }
         if (RuoyiStringUtils.isNotEmpty(attr.prompt()) || attr.combo().length > 0) {
-            if (attr.combo().length > 15 || RuoyiStringUtils.join(attr.combo()).length() > 255) {
+            String[] comboArray = attr.combo();
+            if (comboArray.length > 15 || RuoyiStringUtils.join(comboArray).length() > 255) {
                 // 如果下拉数大于15或字符串长度大于255，则使用一个新sheet存储，避免生成的模板下拉值获取不到
-                setXSSFValidationWithHidden(sheet, attr.combo(), attr.prompt(), 1, 100, column, column);
+                setXSSFValidationWithHidden(sheet, comboArray, attr.prompt(), 1, 100, column, column);
             } else {
                 // 提示信息或只能选择不能输入的列内容.
-                setPromptOrValidation(sheet, attr.combo(), attr.prompt(), 1, 100, column, column);
+                setPromptOrValidation(sheet, comboArray, attr.prompt(), 1, 100, column, column);
             }
         }
     }
@@ -797,13 +913,24 @@ public class RuoyiExcelUtil<T> {
                     CellRangeAddress cellAddress = new CellRangeAddress(subMergedFirstRowNum, subMergedLastRowNum, column, column);
                     sheet.addMergedRegion(cellAddress);
                 }
-                cell.setCellStyle(styles.get(RuoyiStringUtils.format("data_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor())));
+                cell.setCellStyle(styles.get(RuoyiStringUtils.format("data_{}_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor(), attr.cellType())));
 
                 // 用于读取对象中的属性
                 Object value = getTargetValue(vo, field, attr);
                 String dateFormat = attr.dateFormat();
+//                String readConverterExp = attr.readConverterExp();
+//                String separator = attr.separator();
+//                String dictType = attr.dictType();
                 if (RuoyiStringUtils.isNotEmpty(dateFormat) && Objects.nonNull(value)) {
                     cell.setCellValue(parseDateToStr(dateFormat, value));
+//                } else if (RuoyiStringUtils.isNotEmpty(readConverterExp) && RuoyiStringUtils.isNotNull(value)) {
+//                    cell.setCellValue(convertByExp(Convert.toStr(value), readConverterExp, separator));
+//                } else if (RuoyiStringUtils.isNotEmpty(dictType) && RuoyiStringUtils.isNotNull(value)) {
+//                    if (!sysDictMap.containsKey(dictType + value)) {
+//                        String lable = convertDictByExp(Convert.toStr(value), dictType, separator);
+//                        sysDictMap.put(dictType + value, lable);
+//                    }
+//                    cell.setCellValue(sysDictMap.get(dictType + value));
                 } else if (value instanceof BigDecimal && -1 != attr.scale()) {
                     cell.setCellValue((((BigDecimal) value).setScale(attr.scale(), attr.roundingMode())).doubleValue());
                 } else if (!attr.handler().equals(RuoyiExcelHandlerAdapter.class)) {
@@ -815,7 +942,7 @@ public class RuoyiExcelUtil<T> {
                 addStatisticsData(column, RuoyiConvert.toStr(value), attr);
             }
         } catch (Exception e) {
-            log.error("导出Excel失败{}", e);
+            log.error("导出Excel失败", e);
         }
         return cell;
     }
@@ -956,6 +1083,32 @@ public class RuoyiExcelUtil<T> {
         return RuoyiStringUtils.stripEnd(propertyString.toString(), separator);
     }
 
+//    /**
+//     * 解析字典值
+//     *
+//     * @param dictValue 字典值
+//     * @param dictType 字典类型
+//     * @param separator 分隔符
+//     * @return 字典标签
+//     */
+//    public static String convertDictByExp(String dictValue, String dictType, String separator)
+//    {
+//        return DictUtils.getDictLabel(dictType, dictValue, separator);
+//    }
+//
+//    /**
+//     * 反向解析值字典值
+//     *
+//     * @param dictLabel 字典标签
+//     * @param dictType 字典类型
+//     * @param separator 分隔符
+//     * @return 字典值
+//     */
+//    public static String reverseDictByExp(String dictLabel, String dictType, String separator)
+//    {
+//        return DictUtils.getDictValue(dictType, dictLabel, separator);
+//    }
+
     /**
      * 数据处理器
      *
@@ -969,7 +1122,7 @@ public class RuoyiExcelUtil<T> {
             Method formatMethod = excel.handler().getMethod("format", new Class[]{Object.class, Locale.class, String[].class, Cell.class, Workbook.class});
             value = formatMethod.invoke(instance, value, locale, excel.args(), cell, this.wb);
         } catch (Exception e) {
-            log.error("不能格式化数据 {}, value: {}, name: {}, message: {}", excel.handler(), value, excel.name(), e.getMessage());
+            log.error("不能格式化数据 " + excel.handler(), e.getMessage());
         }
         return RuoyiConvert.toStr(value);
     }
@@ -1011,10 +1164,35 @@ public class RuoyiExcelUtil<T> {
         }
     }
 
+//    /**
+//     * 编码文件名
+//     */
+//    public String encodingFilename(String filename)
+//    {
+//        filename = UUID.randomUUID() + "_" + filename + ".xlsx";
+//        return filename;
+//    }
+//
+//    /**
+//     * 获取下载路径
+//     *
+//     * @param filename 文件名称
+//     */
+//    public String getAbsoluteFile(String filename)
+//    {
+//        String downloadPath = RuoYiConfig.getDownloadPath() + filename;
+//        File desc = new File(downloadPath);
+//        if (!desc.getParentFile().exists())
+//        {
+//            desc.getParentFile().mkdirs();
+//        }
+//        return downloadPath;
+//    }
+
     /**
      * 获取bean中的属性值
      *
-     * @param vo    实体对象
+     * @param vo 实体对象
      * @param field 字段
      * @param excel 注解
      * @return 最终的属性值
@@ -1063,14 +1241,23 @@ public class RuoyiExcelUtil<T> {
         this.maxHeight = getRowHeight();
     }
 
+    @NonNull
+    public static List<Field> getAllSuperclassFields(Class<?> clazz) {
+        List<Field> allFields = new ArrayList<>();
+        while (clazz != null && clazz != Object.class) {
+            Field[] declaredFields = clazz.getDeclaredFields();
+            allFields.addAll(Arrays.asList(declaredFields));
+            clazz = clazz.getSuperclass();
+        }
+        return allFields;
+    }
+
     /**
      * 获取字段注解信息
      */
     public List<Object[]> getFields() {
         List<Object[]> fields = new ArrayList<Object[]>();
-        List<Field> tempFields = new ArrayList<>();
-        tempFields.addAll(Arrays.asList(clazz.getSuperclass().getDeclaredFields()));
-        tempFields.addAll(Arrays.asList(clazz.getDeclaredFields()));
+        List<Field> tempFields = getAllSuperclassFields(clazz);
         for (Field field : tempFields) {
             if (!ArrayUtils.contains(this.excludeFields, field.getName())) {
                 // 单注解
@@ -1078,7 +1265,7 @@ public class RuoyiExcelUtil<T> {
                     RuoyiExcel attr = field.getAnnotation(RuoyiExcel.class);
                     if (attr != null && (attr.type() == RuoyiExcel.Type.ALL || attr.type() == type)) {
                         field.setAccessible(true);
-                        fields.add(new Object[]{field, attr});
+                        fields.add(new Object[] { field, attr });
                     }
                     if (Collection.class.isAssignableFrom(field.getType())) {
                         subMethod = getSubMethod(field.getName(), clazz);
@@ -1096,7 +1283,7 @@ public class RuoyiExcelUtil<T> {
                         if (!ArrayUtils.contains(this.excludeFields, field.getName() + "." + attr.targetAttr())
                                 && (attr != null && (attr.type() == RuoyiExcel.Type.ALL || attr.type() == type))) {
                             field.setAccessible(true);
-                            fields.add(new Object[]{field, attr});
+                            fields.add(new Object[] { field, attr });
                         }
                     }
                 }
@@ -1131,7 +1318,7 @@ public class RuoyiExcelUtil<T> {
      * 创建工作表
      *
      * @param sheetNo sheet数量
-     * @param index   序号
+     * @param index 序号
      */
     public void createSheet(int sheetNo, int index) {
         // 设置工作表的名称.
@@ -1145,7 +1332,7 @@ public class RuoyiExcelUtil<T> {
     /**
      * 获取单元格值
      *
-     * @param row    获取的行
+     * @param row 获取的行
      * @param column 获取单元格列号
      * @return 单元格值
      */
@@ -1205,7 +1392,7 @@ public class RuoyiExcelUtil<T> {
     /**
      * 获取Excel2003图片
      *
-     * @param sheet    当前sheet对象
+     * @param sheet 当前sheet对象
      * @param workbook 工作簿对象
      * @return Map key:图片单元格索引（1_1）String，value:图片流PictureData
      */
@@ -1232,7 +1419,7 @@ public class RuoyiExcelUtil<T> {
     /**
      * 获取Excel2007图片
      *
-     * @param sheet    当前sheet对象
+     * @param sheet 当前sheet对象
      * @param workbook 工作簿对象
      * @return Map key:图片单元格索引（1_1）String，value:图片流PictureData
      */
@@ -1260,7 +1447,7 @@ public class RuoyiExcelUtil<T> {
      * 格式化不同类型的日期对象
      *
      * @param dateFormat 日期格式
-     * @param val        被格式化的日期对象
+     * @param val 被格式化的日期对象
      * @return 格式化后的日期字符
      */
     public String parseDateToStr(String dateFormat, Object val) {
@@ -1300,8 +1487,9 @@ public class RuoyiExcelUtil<T> {
     public Collection<?> getListCellValue(Object obj) {
         Object value;
         try {
-            value = subMethod.invoke(obj, new Object[]{});
+            value = subMethod.invoke(obj, new Object[] {});
         } catch (Exception e) {
+            log.debug("[ERROR] getListCellValue(merge cells) failed: {}", e.getMessage());
             return new ArrayList<Object>();
         }
         return (Collection<?>) value;
@@ -1310,7 +1498,7 @@ public class RuoyiExcelUtil<T> {
     /**
      * 获取对象的子列表方法
      *
-     * @param name      名称
+     * @param name 名称
      * @param pojoClass 类对象
      * @return 子列表方法
      */
@@ -1320,7 +1508,7 @@ public class RuoyiExcelUtil<T> {
         getMethodName.append(name.substring(1));
         Method method = null;
         try {
-            method = pojoClass.getMethod(getMethodName.toString(), new Class[]{});
+            method = pojoClass.getMethod(getMethodName.toString(), new Class[] {});
         } catch (Exception e) {
             log.error("获取对象异常{}", e.getMessage());
         }
