@@ -1,5 +1,7 @@
 package com.eb.rouyi.excel.poi;
 
+import com.eb.constant.ErrorCodeConstants;
+import com.eb.mvc.exception.ExceptionUtil;
 import com.eb.rouyi.excel.RuoyiConvert;
 import com.eb.rouyi.excel.annotation.RuoyiExcel;
 import com.eb.rouyi.excel.annotation.RuoyiExcels;
@@ -9,6 +11,8 @@ import com.eb.rouyi.file.RuoyiFileUtils;
 import com.eb.rouyi.file.RuoyiImageUtils;
 import com.eb.rouyi.reflect.RuoyiReflectUtils;
 import com.eb.rouyi.util.RuoyiStringUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RegExUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
@@ -132,8 +136,9 @@ public class RuoyiExcelUtil<T> {
 
     /**
      * 注解列表
+     * suyh - 列表里面不包含 list 对应的列，所以排序没有该字段。
      */
-    private List<Object[]> fields;
+    private List<FieldAnnotationVo> fields;
 
     /**
      * 当前行号，从0 开始
@@ -167,6 +172,7 @@ public class RuoyiExcelUtil<T> {
 
     /**
      * 对象的子列表属性
+     * suyh - 只允许有一个List 属性，从代码看这时辰只允许一个List 列表，如果多个则会被冲掉。
      */
     private List<Field> subFields;
 
@@ -247,23 +253,29 @@ public class RuoyiExcelUtil<T> {
      */
     public void createSubHead() {
         if (isSubList()) {
-            subMergedFirstRowNum++;
-            subMergedLastRowNum++;
             Row subRow = sheet.createRow(rownum);
-            int excelNum = 0;
-            for (Object[] objects : fields) {
-                RuoyiExcel attr = (RuoyiExcel) objects[1];
-                Cell headCell1 = subRow.createCell(excelNum);
-                String title = MESSAGE_SOURCE.getMessage(attr.nameCode(), null, attr.name(), locale);
-                headCell1.setCellValue(title);
-                headCell1.setCellStyle(styles.get(RuoyiStringUtils.format("header_{}_{}", attr.headerColor(), attr.headerBackgroundColor())));
-                excelNum++;
+            int indexColumn = 0;    // 列下标，从0 开始计
+            int subFieldSize = subFields != null ? subFields.size() : 0;
+            for (FieldAnnotationVo vo : fields) {
+                Field field = vo.getField();
+                RuoyiExcel attr = vo.getAnno();
+
+                Cell cell = subRow.createCell(indexColumn);
+                cell.setCellValue(attr.name());
+                cell.setCellStyle(styles.get(RuoyiStringUtils.format("header_{}_{}", attr.headerColor(), attr.headerBackgroundColor())));
+
+                if (Collection.class.isAssignableFrom(field.getType())) {
+                    if (subFieldSize > 1) {
+                        CellRangeAddress cellAddress = new CellRangeAddress(rownum, rownum, indexColumn, indexColumn + subFieldSize - 1);
+                        sheet.addMergedRegion(cellAddress);
+                    }
+
+                    indexColumn += subFieldSize;
+                } else {
+                    indexColumn++;
+                }
             }
-            int headFirstRow = excelNum - 1;
-            int headLastRow = headFirstRow + subFields.size() - 1;
-            if (headLastRow > headFirstRow) {
-                sheet.addMergedRegion(new CellRangeAddress(rownum, rownum, headFirstRow, headLastRow));
-            }
+
             rownum++;
         }
     }
@@ -339,10 +351,10 @@ public class RuoyiExcelUtil<T> {
                 }
             }
             // 有数据时才处理 得到类的所有field.
-            List<Object[]> fields = this.getFields();
-            Map<Integer, Object[]> fieldsMap = new HashMap<Integer, Object[]>();
-            for (Object[] objects : fields) {
-                RuoyiExcel attr = (RuoyiExcel) objects[1];
+            List<FieldAnnotationVo> fields = this.getFields();
+            Map<Integer, FieldAnnotationVo> fieldsMap = new HashMap<>();
+            for (FieldAnnotationVo objects : fields) {
+                RuoyiExcel attr = objects.anno;
                 Integer column = cellMap.get(attr.name());
                 if (column != null) {
                     fieldsMap.put(column, objects);
@@ -356,14 +368,14 @@ public class RuoyiExcelUtil<T> {
                     continue;
                 }
                 T entity = null;
-                for (Map.Entry<Integer, Object[]> entry : fieldsMap.entrySet()) {
+                for (Map.Entry<Integer, FieldAnnotationVo> entry : fieldsMap.entrySet()) {
                     Object val = this.getCellValue(row, entry.getKey());
 
                     // 如果不存在实例则新建.
                     entity = (entity == null ? clazz.newInstance() : entity);
                     // 从map中得到对应列的field.
-                    Field field = (Field) entry.getValue()[0];
-                    RuoyiExcel attr = (RuoyiExcel) entry.getValue()[1];
+                    Field field = entry.getValue().getField();
+                    RuoyiExcel attr = entry.getValue().getAnno();
                     // 取得类型,并根据对象类型设置值.
                     Class<?> fieldType = field.getType();
                     if (String.class == fieldType) {
@@ -524,7 +536,8 @@ public class RuoyiExcelUtil<T> {
             writeSheet();
             wb.write(response.getOutputStream());
         } catch (Exception e) {
-            log.error("导出Excel异常{}", e.getMessage());
+            log.error("导出Excel异常", e);
+            throw ExceptionUtil.business(ErrorCodeConstants.SERVICE_ERROR);
         } finally {
             IOUtils.closeQuietly(wb);
         }
@@ -571,9 +584,9 @@ public class RuoyiExcelUtil<T> {
             Row row = sheet.createRow(rownum);
             int column = 0;
             // 写入各个字段的列头名称
-            for (Object[] os : fields) {
-                Field field = (Field) os[0];
-                RuoyiExcel excel = (RuoyiExcel) os[1];
+            for (FieldAnnotationVo vo : fields) {
+                Field field = vo.getField();
+                RuoyiExcel excel = vo.getAnno();
                 if (Collection.class.isAssignableFrom(field.getType())) {
                     for (Field subField : subFields) {
                         RuoyiExcel subExcel = subField.getAnnotation(RuoyiExcel.class);
@@ -600,51 +613,71 @@ public class RuoyiExcelUtil<T> {
     public void fillExcelData(int index, Row row) {
         int startNo = index * sheetSize;
         int endNo = Math.min(startNo + sheetSize, list.size());
-        int rowNo = (1 + rownum) - startNo;
+        int currentRowNum = rownum + 1; // 从标题行后开始
+
         for (int i = startNo; i < endNo; i++) {
-            rowNo = isSubList() ? (i > 1 ? rowNo + 1 : rowNo + i) : i + 1 + rownum - startNo;
-            row = sheet.createRow(rowNo);
-            // 得到导出对象.
-            T vo = (T) list.get(i);
-            Collection<?> subList = null;
-            if (isSubList()) {
-                if (isSubListValue(vo)) {
-                    subList = getListCellValue(vo);
-                    subMergedLastRowNum = subMergedLastRowNum + subList.size();
+            row = sheet.createRow(currentRowNum);
+            T vo = list.get(i);
+            int column = 0;
+            int maxSubListSize = getCurrentMaxSubListSize(vo);
+            for (FieldAnnotationVo fieldAnnotationVo : fields) {
+                Field field = fieldAnnotationVo.getField();
+                RuoyiExcel excel = fieldAnnotationVo.getAnno();
+                if (Collection.class.isAssignableFrom(field.getType())) {
+                    try {
+                        Collection<?> subList = (Collection<?>) getTargetValue(vo, field, excel);
+                        if (subList != null && !subList.isEmpty()) {
+                            int subIndex = 0;
+                            for (Object subVo : subList) {
+                                Row subRow = sheet.getRow(currentRowNum + subIndex);
+                                if (subRow == null) {
+                                    subRow = sheet.createRow(currentRowNum + subIndex);
+                                }
+
+                                int subColumn = column;
+                                for (Field subField : subFields) {
+                                    RuoyiExcel subExcel = subField.getAnnotation(RuoyiExcel.class);
+                                    addCell(subExcel, subRow, (T) subVo, subField, subColumn++);
+                                }
+                                subIndex++;
+                            }
+                            column += subFields.size();
+                        }
+                    } catch (Exception e) {
+                        log.error("填充集合数据失败", e);
+                    }
                 } else {
-                    subMergedFirstRowNum++;
-                    subMergedLastRowNum++;
+                    // 创建单元格并设置值
+                    addCell(excel, row, vo, field, column);
+                    if (maxSubListSize > 1 && excel.needMerge()) {
+                        sheet.addMergedRegion(new CellRangeAddress(currentRowNum, currentRowNum + maxSubListSize - 1, column, column));
+                    }
+                    column++;
                 }
             }
-            int column = 0;
-            for (Object[] os : fields) {
-                Field field = (Field) os[0];
-                RuoyiExcel excel = (RuoyiExcel) os[1];
-                if (Collection.class.isAssignableFrom(field.getType()) && Objects.nonNull(subList)) {
-                    boolean subFirst = false;
-                    for (Object obj : subList) {
-                        if (subFirst) {
-                            rowNo++;
-                            row = sheet.createRow(rowNo);
-                        }
-                        List<Field> subFields = FieldUtils.getFieldsListWithAnnotation(obj.getClass(), RuoyiExcel.class);
-                        int subIndex = 0;
-                        for (Field subField : subFields) {
-                            if (subField.isAnnotationPresent(RuoyiExcel.class)) {
-                                subField.setAccessible(true);
-                                RuoyiExcel attr = subField.getAnnotation(RuoyiExcel.class);
-                                this.addCell(attr, row, (T) obj, subField, column + subIndex);
-                            }
-                            subIndex++;
-                        }
-                        subFirst = true;
+            currentRowNum += maxSubListSize;
+        }
+    }
+
+    private int getCurrentMaxSubListSize(T vo) {
+        int maxSubListSize = 1;
+        for (FieldAnnotationVo fieldAnnotationVo : fields) {
+            Field field = fieldAnnotationVo.getField();
+            RuoyiExcel anno = fieldAnnotationVo.getAnno();
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                try {
+                    Collection<?> subList = (Collection<?>) getTargetValue(vo, field, anno);
+                    if (subList != null && !subList.isEmpty())
+                    {
+                        maxSubListSize = Math.max(maxSubListSize, subList.size());
                     }
-                    this.subMergedFirstRowNum = this.subMergedFirstRowNum + subList.size();
-                } else {
-                    this.addCell(excel, row, vo, field, column++);
+                } catch (Exception e) {
+                    log.error("获取集合大小失败", e);
+                    throw ExceptionUtil.business(ErrorCodeConstants.SERVICE_ERROR);
                 }
             }
         }
+        return maxSubListSize;
     }
 
     /**
@@ -709,8 +742,8 @@ public class RuoyiExcelUtil<T> {
      */
     private Map<String, CellStyle> annotationHeaderStyles(Workbook wb, Map<String, CellStyle> styles) {
         Map<String, CellStyle> headerStyles = new HashMap<String, CellStyle>();
-        for (Object[] os : fields) {
-            RuoyiExcel excel = (RuoyiExcel) os[1];
+        for (FieldAnnotationVo vo : fields) {
+            RuoyiExcel excel = vo.getAnno();
             String key = RuoyiStringUtils.format("header_{}_{}", excel.headerColor(), excel.headerBackgroundColor());
             if (!headerStyles.containsKey(key)) {
                 CellStyle style = wb.createCellStyle();
@@ -742,9 +775,9 @@ public class RuoyiExcelUtil<T> {
      */
     private Map<String, CellStyle> annotationDataStyles(Workbook wb) {
         Map<String, CellStyle> styles = new HashMap<String, CellStyle>();
-        for (Object[] os : fields) {
-            Field field = (Field) os[0];
-            RuoyiExcel excel = (RuoyiExcel) os[1];
+        for (FieldAnnotationVo fieldAnnotationVo : fields) {
+            Field field = fieldAnnotationVo.getField();
+            RuoyiExcel excel = fieldAnnotationVo.getAnno();
             if (Collection.class.isAssignableFrom(field.getType())) {
                 ParameterizedType pt = (ParameterizedType) field.getGenericType();
                 Class<?> subClass = (Class<?>) pt.getActualTypeArguments()[0];
@@ -812,7 +845,6 @@ public class RuoyiExcelUtil<T> {
             // 填充默认样式，防止合并单元格样式失效
             sheet.setDefaultColumnStyle(column, styles.get(RuoyiStringUtils.format("data_{}_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor(), attr.cellType())));
             if (attr.needMerge()) {
-                // suyh - 合并单元格
                 sheet.addMergedRegion(new CellRangeAddress(rownum - 1, rownum, column, column));
             }
         }
@@ -910,8 +942,9 @@ public class RuoyiExcelUtil<T> {
                 // 创建cell
                 cell = row.createCell(column);
                 if (isSubListValue(vo) && getListCellValue(vo).size() > 1 && attr.needMerge()) {
-                    CellRangeAddress cellAddress = new CellRangeAddress(subMergedFirstRowNum, subMergedLastRowNum, column, column);
-                    sheet.addMergedRegion(cellAddress);
+                    if (subMergedLastRowNum >= subMergedFirstRowNum) {
+                        sheet.addMergedRegion(new CellRangeAddress(subMergedFirstRowNum, subMergedLastRowNum, column, column));
+                    }
                 }
                 cell.setCellStyle(styles.get(RuoyiStringUtils.format("data_{}_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor(), attr.cellType())));
 
@@ -922,6 +955,7 @@ public class RuoyiExcelUtil<T> {
 //                String separator = attr.separator();
 //                String dictType = attr.dictType();
                 if (RuoyiStringUtils.isNotEmpty(dateFormat) && Objects.nonNull(value)) {
+                    cell.getCellStyle().setDataFormat(this.wb.getCreationHelper().createDataFormat().getFormat(dateFormat));
                     cell.setCellValue(parseDateToStr(dateFormat, value));
 //                } else if (RuoyiStringUtils.isNotEmpty(readConverterExp) && RuoyiStringUtils.isNotNull(value)) {
 //                    cell.setCellValue(convertByExp(Convert.toStr(value), readConverterExp, separator));
@@ -1199,6 +1233,7 @@ public class RuoyiExcelUtil<T> {
      * @throws Exception
      */
     private Object getTargetValue(T vo, Field field, RuoyiExcel excel) throws Exception {
+        field.setAccessible(true);
         Object o = field.get(vo);
         if (RuoyiStringUtils.isNotEmpty(excel.targetAttr())) {
             String target = excel.targetAttr();
@@ -1237,7 +1272,7 @@ public class RuoyiExcelUtil<T> {
      */
     private void createExcelField() {
         this.fields = getFields();
-        this.fields = this.fields.stream().sorted(Comparator.comparing(objects -> ((RuoyiExcel) objects[1]).sort())).collect(Collectors.toList());
+        this.fields = this.fields.stream().sorted(Comparator.comparing(vo -> vo.getAnno().sort())).collect(Collectors.toList());
         this.maxHeight = getRowHeight();
     }
 
@@ -1252,11 +1287,18 @@ public class RuoyiExcelUtil<T> {
         return allFields;
     }
 
+    @AllArgsConstructor
+    @Getter
+    private static class FieldAnnotationVo {
+        private final Field field;
+        private final RuoyiExcel anno;
+    }
+
     /**
      * 获取字段注解信息
      */
-    public List<Object[]> getFields() {
-        List<Object[]> fields = new ArrayList<Object[]>();
+    private List<FieldAnnotationVo> getFields() {
+        List<FieldAnnotationVo> fields = new ArrayList<>();
         List<Field> tempFields = getAllSuperclassFields(clazz);
         for (Field field : tempFields) {
             if (!ArrayUtils.contains(this.excludeFields, field.getName())) {
@@ -1265,7 +1307,7 @@ public class RuoyiExcelUtil<T> {
                     RuoyiExcel attr = field.getAnnotation(RuoyiExcel.class);
                     if (attr != null && (attr.type() == RuoyiExcel.Type.ALL || attr.type() == type)) {
                         field.setAccessible(true);
-                        fields.add(new Object[] { field, attr });
+                        fields.add(new FieldAnnotationVo(field, attr));
                     }
                     if (Collection.class.isAssignableFrom(field.getType())) {
                         subMethod = getSubMethod(field.getName(), clazz);
@@ -1283,7 +1325,7 @@ public class RuoyiExcelUtil<T> {
                         if (!ArrayUtils.contains(this.excludeFields, field.getName() + "." + attr.targetAttr())
                                 && (attr != null && (attr.type() == RuoyiExcel.Type.ALL || attr.type() == type))) {
                             field.setAccessible(true);
-                            fields.add(new Object[] { field, attr });
+                            fields.add(new FieldAnnotationVo(field, attr));
                         }
                     }
                 }
@@ -1297,8 +1339,8 @@ public class RuoyiExcelUtil<T> {
      */
     public short getRowHeight() {
         double maxHeight = 0;
-        for (Object[] os : this.fields) {
-            RuoyiExcel excel = (RuoyiExcel) os[1];
+        for (FieldAnnotationVo fieldAnnotationVo : this.fields) {
+            RuoyiExcel excel = fieldAnnotationVo.getAnno();
             maxHeight = Math.max(maxHeight, excel.height());
         }
         return (short) (maxHeight * 20);
