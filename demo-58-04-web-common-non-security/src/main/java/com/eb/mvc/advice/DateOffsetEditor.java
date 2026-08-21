@@ -9,7 +9,6 @@ import java.util.Date;
  * @author suyh
  * @since 2026-08-21
  */
-
 public class DateOffsetEditor extends PropertyEditorSupport {
 
     private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT =
