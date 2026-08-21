@@ -37,6 +37,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- fastjson2 主流稳定版 -->
+        <!-- fastjson 1.x 旧版 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.83</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

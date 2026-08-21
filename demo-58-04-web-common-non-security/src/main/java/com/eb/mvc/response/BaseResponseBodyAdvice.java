@@ -69,6 +69,8 @@ public class BaseResponseBodyAdvice implements ResponseBodyAdvice<Object> {
             @NonNull ServerHttpResponse response) {
 
         if (String.class.isAssignableFrom(returnType.getParameterType())) {
+            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
             ResponseResult<Object> result = ResponseResult.ofSuccess(body);
             return JsonUtils.serializable(result);
         }

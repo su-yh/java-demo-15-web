@@ -1,11 +1,13 @@
 package com.eb.mvc.configurer;
 
+import com.eb.constant.enums.EnumConverterFactory;
 import com.eb.mvc.authentication.CurrUserArgumentResolver;
 import com.eb.mvc.authentication.interceptor.AuthenticationInterceptor;
 import com.eb.mvc.error.BaseHandlerExceptionResolver;
 import com.eb.rouyi.service.SysPermissionService;
 import com.eb.system.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.FormatterRegistry;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -48,5 +50,10 @@ public class BaseWebMvcConfigurer implements WebMvcConfigurer {
     public void addInterceptors(@NonNull InterceptorRegistry registry) {
         AuthenticationInterceptor loginInterceptor = new AuthenticationInterceptor(userService, permissionService);
         registry.addInterceptor(loginInterceptor).addPathPatterns("/**");
+    }
+
+    @Override
+    public void addFormatters(@NonNull FormatterRegistry registry) {
+        registry.addConverterFactory(new EnumConverterFactory());
     }
 }
